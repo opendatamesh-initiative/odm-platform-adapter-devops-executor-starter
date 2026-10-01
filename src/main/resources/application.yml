@@ -1,14 +1,14 @@
 server:
   port: 9080
+  error:
+    include-message: always
 
 logging:
   level:
     org.springframework: INFO
     org.executor: DEBUG
-spring:
-  datasource:
-    url: jdbc:h2:mem:testdb
-    driver-class-name: org.h2.Driver
-    username: sa
-    password: password
-    initialization-mode: always
+
+executor:
+  simulation:
+    run-duration: 5s
+    outcome: SUCCEEDED
