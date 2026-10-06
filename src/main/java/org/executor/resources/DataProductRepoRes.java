@@ -3,7 +3,7 @@ package org.executor.resources;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class RepositoryCoordinatesRes {
+public class DataProductRepoRes {
 
     private String providerType;
 
@@ -21,7 +21,7 @@ public class RepositoryCoordinatesRes {
 
     private String defaultBranch;
 
-    public RepositoryCoordinatesRes() {
+    public DataProductRepoRes() {
     }
 
     public String getProviderType() {

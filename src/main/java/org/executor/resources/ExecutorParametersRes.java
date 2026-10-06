@@ -7,7 +7,7 @@ public class ExecutorParametersRes {
 
     private String repositoryKey;
 
-    private RepositoryCoordinatesRes repository;
+    private DataProductRepoRes dataProductRepo;
 
     private GitRefRes ref;
 
@@ -24,12 +24,12 @@ public class ExecutorParametersRes {
         this.repositoryKey = repositoryKey;
     }
 
-    public RepositoryCoordinatesRes getRepository() {
-        return repository;
+    public DataProductRepoRes getDataProductRepo() {
+        return dataProductRepo;
     }
 
-    public void setRepository(RepositoryCoordinatesRes repository) {
-        this.repository = repository;
+    public void setDataProductRepo(DataProductRepoRes dataProductRepo) {
+        this.dataProductRepo = dataProductRepo;
     }
 
     public GitRefRes getRef() {

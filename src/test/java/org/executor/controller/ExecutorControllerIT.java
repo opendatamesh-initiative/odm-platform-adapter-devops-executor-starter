@@ -3,7 +3,8 @@ package org.executor.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.executor.resources.ExecutorParametersRes;
 import org.executor.resources.GitRefRes;
-import org.executor.resources.RepositoryCoordinatesRes;
+import org.executor.resources.DataProductRepoRes;
+import org.executor.resources.TaskCancelCommandRes;
 import org.executor.resources.TaskStartCommandRes;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,6 +38,7 @@ class ExecutorControllerIT {
     private static final String START = "/api/v2/up/executor/tasks/start";
     private static final String STATUS = "/api/v2/up/executor/tasks/status";
     private static final String LOGS = "/api/v2/up/executor/tasks/logs";
+    private static final String CANCEL = "/api/v2/up/executor/tasks/cancel";
 
     private static final String REPOSITORY_KEY = "infra-repo";
     private static final String REPOSITORY_NAME = "sales-app";
@@ -163,6 +165,86 @@ class ExecutorControllerIT {
                 .andExpect(jsonPath("$.content", containsString("SUCCEEDED")));
     }
 
+    /**
+     * Feature: Starter cancel
+     *
+     * Scenario: A running simulated run reports CANCELED after cancel
+     *   Given a run whose duration has not elapsed
+     *   When the executor is asked to cancel that run
+     *   Then the next status read is CANCELED
+     */
+    @Test
+    void whenRunCanceledThenStatusIsCanceled() throws Exception {
+        Map<String, String> pipelineParameters = new LinkedHashMap<>();
+        pipelineParameters.put("starter.durationSeconds", "60");
+
+        String providerRunId = startRun(pipelineParameters, null);
+
+        mockMvc.perform(get(STATUS).param("providerRunId", providerRunId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RUNNING"));
+
+        mockMvc.perform(post(CANCEL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(cancelBody(providerRunId)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get(STATUS).param("providerRunId", providerRunId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.providerRunId").value(providerRunId))
+                .andExpect(jsonPath("$.status").value("CANCELED"));
+    }
+
+    /**
+     * Feature: Starter cancel
+     *
+     * Scenario: Cancel of a finished run conflicts and leaves the status
+     *   Given a run whose status is already SUCCEEDED
+     *   When the executor is asked to cancel that run
+     *   Then the response is 409
+     *   And the next status read is SUCCEEDED
+     */
+    @Test
+    void whenRunAlreadyEndedThenCancelConflicts() throws Exception {
+        Map<String, String> pipelineParameters = new LinkedHashMap<>();
+        pipelineParameters.put("starter.outcome", "SUCCEEDED");
+        pipelineParameters.put("starter.durationSeconds", "0");
+
+        String providerRunId = startRun(pipelineParameters, null);
+
+        mockMvc.perform(get(STATUS).param("providerRunId", providerRunId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("SUCCEEDED"));
+
+        mockMvc.perform(post(CANCEL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(cancelBody(providerRunId)))
+                .andExpect(status().isConflict())
+                .andExpect(status().reason("Run has already ended"));
+
+        mockMvc.perform(get(STATUS).param("providerRunId", providerRunId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.providerRunId").value(providerRunId))
+                .andExpect(jsonPath("$.status").value("SUCCEEDED"));
+    }
+
+    /**
+     * Feature: Starter cancel
+     *
+     * Scenario: Cancel of an unknown run is not found
+     *   Given no run has that provider run id
+     *   When the executor is asked to cancel it
+     *   Then the response is 404
+     */
+    @Test
+    void whenRunUnknownThenCancelIsNotFound() throws Exception {
+        mockMvc.perform(post(CANCEL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(cancelBody("starter-does-not-exist")))
+                .andExpect(status().isNotFound())
+                .andExpect(status().reason("Unknown providerRunId"));
+    }
+
     private String startRun(Map<String, String> pipelineParameters, HttpHeaders headers) throws Exception {
         var request = post(START)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -178,8 +260,14 @@ class ExecutorControllerIT {
         return objectMapper.readTree(result.getResponse().getContentAsString()).get("providerRunId").asText();
     }
 
+    private String cancelBody(String providerRunId) throws Exception {
+        TaskCancelCommandRes command = new TaskCancelCommandRes();
+        command.setProviderRunId(providerRunId);
+        return objectMapper.writeValueAsString(command);
+    }
+
     private String body(Map<String, String> pipelineParameters) throws Exception {
-        RepositoryCoordinatesRes repository = new RepositoryCoordinatesRes();
+        DataProductRepoRes repository = new DataProductRepoRes();
         repository.setProviderType("GITHUB");
         repository.setProviderBaseUrl("https://github.com");
         repository.setExternalIdentifier("812300");
@@ -195,7 +283,7 @@ class ExecutorControllerIT {
 
         ExecutorParametersRes executorParameters = new ExecutorParametersRes();
         executorParameters.setRepositoryKey(REPOSITORY_KEY);
-        executorParameters.setRepository(repository);
+        executorParameters.setDataProductRepo(repository);
         executorParameters.setRef(ref);
         executorParameters.setPipelineIdentifier(PIPELINE_IDENTIFIER);
 

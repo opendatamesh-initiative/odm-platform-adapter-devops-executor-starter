@@ -3,7 +3,7 @@ package org.executor.services;
 import org.executor.config.SimulationProperties;
 import org.executor.resources.ExecutorParametersRes;
 import org.executor.resources.GitRefRes;
-import org.executor.resources.RepositoryCoordinatesRes;
+import org.executor.resources.DataProductRepoRes;
 import org.executor.resources.TaskLogsRes;
 import org.executor.resources.TaskStartCommandRes;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,6 +27,7 @@ public class SimulatedRunStore {
     static final String STATUS_RUNNING = "RUNNING";
     static final String STATUS_SUCCEEDED = "SUCCEEDED";
     static final String STATUS_FAILED = "FAILED";
+    static final String STATUS_CANCELED = "CANCELED";
 
     private static final String OUTCOME_PARAMETER = "starter.outcome";
     private static final String DURATION_PARAMETER = "starter.durationSeconds";
@@ -45,7 +46,8 @@ public class SimulatedRunStore {
                 resolveDuration(request),
                 resolveOutcome(request),
                 request,
-                copyHeaderNames(headerNames)
+                copyHeaderNames(headerNames),
+                false
         );
         runs.put(providerRunId, run);
         return providerRunId;
@@ -53,11 +55,25 @@ public class SimulatedRunStore {
 
     public String status(String providerRunId) {
         SimulatedRun run = require(providerRunId);
-        Instant end = run.startedAt().plus(run.plannedDuration());
-        if (Instant.now().isBefore(end)) {
+        if (run.canceled()) {
+            return STATUS_CANCELED;
+        }
+        if (!ended(run)) {
             return STATUS_RUNNING;
         }
         return run.plannedOutcome();
+    }
+
+    public void cancel(String providerRunId) {
+        runs.compute(providerRunId, (id, run) -> {
+            if (run == null) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown providerRunId");
+            }
+            if (ended(run) && !run.canceled()) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Run has already ended");
+            }
+            return run.withCanceled();
+        });
     }
 
     public TaskLogsRes logs(String providerRunId) {
@@ -66,6 +82,11 @@ public class SimulatedRunStore {
         logs.setContent(render(run));
         logs.setGeneratedAt(new Date());
         return logs;
+    }
+
+    private static boolean ended(SimulatedRun run) {
+        Instant end = run.startedAt().plus(run.plannedDuration());
+        return !Instant.now().isBefore(end);
     }
 
     private SimulatedRun require(String providerRunId) {
@@ -146,7 +167,7 @@ public class SimulatedRunStore {
     private String render(SimulatedRun run) {
         TaskStartCommandRes request = run.request();
         ExecutorParametersRes parameters = request == null ? null : request.getExecutorParameters();
-        RepositoryCoordinatesRes repository = parameters == null ? null : parameters.getRepository();
+        DataProductRepoRes repository = parameters == null ? null : parameters.getDataProductRepo();
         GitRefRes ref = parameters == null ? null : parameters.getRef();
         Instant endedAt = run.startedAt().plus(run.plannedDuration());
         return String.join("\n",
@@ -188,7 +209,19 @@ public class SimulatedRunStore {
             Duration plannedDuration,
             String plannedOutcome,
             TaskStartCommandRes request,
-            List<String> secretHeaderNames
+            List<String> secretHeaderNames,
+            boolean canceled
     ) {
+        SimulatedRun withCanceled() {
+            return new SimulatedRun(
+                    providerRunId,
+                    startedAt,
+                    plannedDuration,
+                    plannedOutcome,
+                    request,
+                    secretHeaderNames,
+                    true
+            );
+        }
     }
 }

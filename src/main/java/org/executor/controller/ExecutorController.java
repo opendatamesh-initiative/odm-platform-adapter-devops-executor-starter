@@ -1,5 +1,6 @@
 package org.executor.controller;
 
+import org.executor.resources.TaskCancelCommandRes;
 import org.executor.resources.TaskLogsRes;
 import org.executor.resources.TaskStartCommandRes;
 import org.executor.resources.TaskStartResultRes;
@@ -44,6 +45,12 @@ public class ExecutorController {
         TaskStartResultRes result = new TaskStartResultRes();
         result.setProviderRunId(providerRunId);
         return result;
+    }
+
+    @PostMapping("/cancel")
+    public void cancel(@RequestBody TaskCancelCommandRes request) {
+        log.info("Cancel run {}", request.getProviderRunId());
+        simulatedRunStore.cancel(request.getProviderRunId());
     }
 
     @GetMapping("/status")

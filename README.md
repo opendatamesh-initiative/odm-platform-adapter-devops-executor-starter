@@ -25,7 +25,7 @@ The service listens on port **9080**.
 
 A start request without `executorParameters` returns **400**, and the body names `executorParameters`. An unknown `providerRunId` returns **404**.
 
-`executorParameters` carries `repositoryKey`, `repository` (`providerType`, `providerBaseUrl`, `externalIdentifier`, `name`, `ownerId`, `ownerType`, `remoteUrlHttp`, `defaultBranch`), `ref` (`name`, `type`), and `pipelineIdentifier`. Unknown JSON properties are ignored. No activity or task identifiers are required.
+`executorParameters` carries `repositoryKey`, `dataProductRepo` (`providerType`, `providerBaseUrl`, `externalIdentifier`, `name`, `ownerId`, `ownerType`, `remoteUrlHttp`, `defaultBranch`), `ref` (`name`, `type`), and `pipelineIdentifier`. Unknown JSON properties are ignored. No activity or task identifiers are required.
 
 ## Simulation
 
