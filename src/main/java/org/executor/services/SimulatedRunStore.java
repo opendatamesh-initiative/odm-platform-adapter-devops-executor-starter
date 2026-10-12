@@ -1,15 +1,15 @@
 package org.executor.services;
 
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import org.executor.config.SimulationProperties;
+import org.executor.exceptions.ConflictException;
+import org.executor.exceptions.NotFoundException;
 import org.executor.resources.ExecutorParametersRes;
 import org.executor.resources.GitRefRes;
 import org.executor.resources.DataProductRepoRes;
 import org.executor.resources.TaskLogsRes;
 import org.executor.resources.TaskStartCommandRes;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -21,7 +21,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-@Service
+@ApplicationScoped
 public class SimulatedRunStore {
 
     static final String STATUS_RUNNING = "RUNNING";
@@ -34,8 +34,12 @@ public class SimulatedRunStore {
 
     private final ConcurrentHashMap<String, SimulatedRun> runs = new ConcurrentHashMap<>();
 
-    @Autowired
-    private SimulationProperties simulationProperties;
+    private final SimulationProperties simulationProperties;
+
+    @Inject
+    public SimulatedRunStore(SimulationProperties simulationProperties) {
+        this.simulationProperties = simulationProperties;
+    }
 
     public String start(TaskStartCommandRes request, List<String> headerNames) {
         String providerRunId = "starter-" + UUID.randomUUID();
@@ -67,10 +71,10 @@ public class SimulatedRunStore {
     public void cancel(String providerRunId) {
         runs.compute(providerRunId, (id, run) -> {
             if (run == null) {
-                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown providerRunId");
+                throw new NotFoundException("Unknown providerRunId");
             }
             if (ended(run) && !run.canceled()) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "Run has already ended");
+                throw new ConflictException("Run has already ended");
             }
             return run.withCanceled();
         });
@@ -92,7 +96,7 @@ public class SimulatedRunStore {
     private SimulatedRun require(String providerRunId) {
         SimulatedRun run = runs.get(providerRunId);
         if (run == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown providerRunId");
+            throw new NotFoundException("Unknown providerRunId");
         }
         return run;
     }
@@ -110,7 +114,7 @@ public class SimulatedRunStore {
     }
 
     private Duration configuredDuration() {
-        Duration configured = simulationProperties.getRunDuration();
+        Duration configured = simulationProperties.runDuration();
         if (configured == null) {
             return Duration.ofSeconds(5);
         }
@@ -122,7 +126,7 @@ public class SimulatedRunStore {
         if (requested != null) {
             return requested;
         }
-        String configured = simulationProperties.getOutcome();
+        String configured = simulationProperties.outcome();
         String canonical = canonicalOutcome(configured);
         if (canonical != null) {
             return canonical;

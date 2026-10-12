@@ -7,12 +7,13 @@ The service listens on port **9080**.
 ## Requirements
 
 - Java 21
-- Maven 3.6+ (or the included `./mvnw` wrapper)
+- Maven 3.9+ (or the included `./mvnw` wrapper)
+- Quarkus 3.40.1, from `blindata-backend-service-template-quarkus` 1.0.0 (`template.yaml`)
 
 ## Run
 
 ```bash
-./mvnw spring-boot:run
+./mvnw quarkus:dev
 ```
 
 ## Endpoints
@@ -29,7 +30,7 @@ A start request without `executorParameters` returns **400**, and the body names
 
 ## Simulation
 
-Defaults (`executor.simulation` in `application.yml`):
+Defaults (`executor.simulation` in `application.properties`):
 
 - `run-duration`: `5s`
 - `outcome`: `SUCCEEDED`

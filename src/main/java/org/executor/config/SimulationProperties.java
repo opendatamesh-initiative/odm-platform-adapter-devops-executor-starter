@@ -1,29 +1,16 @@
 package org.executor.config;
 
-import org.springframework.boot.context.properties.ConfigurationProperties;
+import io.smallrye.config.ConfigMapping;
+import io.smallrye.config.WithDefault;
 
 import java.time.Duration;
 
-@ConfigurationProperties(prefix = "executor.simulation")
-public class SimulationProperties {
+@ConfigMapping(prefix = "executor.simulation")
+public interface SimulationProperties {
 
-    private Duration runDuration = Duration.ofSeconds(5);
+    @WithDefault("5s")
+    Duration runDuration();
 
-    private String outcome = "SUCCEEDED";
-
-    public Duration getRunDuration() {
-        return runDuration;
-    }
-
-    public void setRunDuration(Duration runDuration) {
-        this.runDuration = runDuration;
-    }
-
-    public String getOutcome() {
-        return outcome;
-    }
-
-    public void setOutcome(String outcome) {
-        this.outcome = outcome;
-    }
+    @WithDefault("SUCCEEDED")
+    String outcome();
 }
