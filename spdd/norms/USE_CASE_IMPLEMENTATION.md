@@ -15,7 +15,7 @@ The flow is:
 
 ### Hard boundaries (use case package)
 
-- **REST resources (`*CommandRes`, `*ResultRes`, and any `*Res` under `org.executor.rest`) MUST NOT** be referenced inside the use case package (`org.executor.<aggregate>.services.usecases.*`). They belong to the HTTP adapter; only the **use cases service** (and the JAX-RS resource) may use them.
+- **REST resources (`*CommandRes`, `*ResultRes`, and any `*Res`) MUST NOT** be referenced inside the use case package (`org.executor.<aggregate>.services.usecases.*`). They belong to the HTTP adapter; only the **use cases service** (and the JAX-RS resource) may use them. Do not put those types in a versioned `rest` package.
 - **Commands** passed into the use case MUST carry **domain data only**: JPA **entities**, value types, or **small immutable records** you declare for denormalized input—never API DTOs.
 - **Presenters** MUST accept **domain results** (entities, domain records, or primitives)—not `*Res` types.
 - **Outbound port implementations** (`*OutboundPortImpl`) MUST be **plain Java classes** (no `@ApplicationScoped` or other CDI stereotypes). The **factory** is the only `@ApplicationScoped` bean in that slice: it constructs port impls with `new` and passes **injected collaborators** (core services, mappers, clients, `TransactionalOutboundPort`) into their constructors. Port interfaces stay free of framework types.
@@ -66,7 +66,7 @@ Use the transactional port inside the use case when the operation must be atomic
 
 ### JAX-RS resource
 
-- **Package:** `org.executor.rest`
+- **Package:** adopting service, typically next to the aggregate. **Do not** use a versioned `rest` package (`rest.v1`, `rest.v2`) and **do not** put template utilities under `org.executor.rest`. Inbound HTTP helpers that the template ships live in `org.executor.utils.rest`.
 - **Class name:** `*UseCaseResource` (e.g. `DataProductUseCaseResource`).
 - **Annotations:** `@Path`, `@Produces(MediaType.APPLICATION_JSON)`.
 - **Responsibility:** Map HTTP to the corresponding `*UseCasesService` method only. No business rules.
@@ -74,7 +74,7 @@ Use the transactional port inside the use case when the operation must be atomic
 
 ### Resources (DTOs)
 
-- **Package:** `org.executor.rest.<aggregate>.usecases.<verb>` (e.g. `org.executor.rest.dataproduct.usecases.init`).
+- **Package:** with the HTTP adapter (same aggregate, no version segment).
 - **Naming:**
   - Request body: `*CommandRes` (e.g. `DataProductInitCommandRes`).
   - Response body: `*ResultRes` when returning payload (e.g. `DataProductInitResultRes`).
@@ -188,7 +188,7 @@ The factory is the only place that chooses concrete port implementations for tha
 
 ## 10. Testing
 
-- Add or extend **integration tests** for use case resources (e.g. `*UseCaseResourceIT` under `src/test/java/.../rest`) to verify the full stack for the new endpoint.
+- Add or extend **integration tests** for use case resources (e.g. `*UseCaseResourceIT`) to verify the full stack for the new endpoint.
 - Unit-test complex port adapters or use case logic where it pays off (existing project uses tests such as `*OutboundPortTest` in some areas).
 
 ---
@@ -199,7 +199,7 @@ The factory is the only place that chooses concrete port implementations for tha
 2. Define **outbound port** interfaces and **plain `*OutboundPortImpl` classes** (no CDI annotations). Implement validation/persistence/etc. with collaborators passed from the factory.
 3. Add **`@ApplicationScoped` factory** only: construct port impls and the use case with `new`, inject `TransactionalOutboundPort` and core services/mappers.
 4. Add **`*UseCasesService`** methods (or extend an existing one): map `*CommandRes` → entity/command, run factory + `execute()`, map domain result from presenter to `*ResultRes`.
-5. Add **`*CommandRes` / `*ResultRes`** under `org.executor.rest.<aggregate>.usecases...` with OpenAPI `@Schema` as needed.
+5. Add **`*CommandRes` / `*ResultRes`** next to the HTTP adapter (no versioned `rest` package) with OpenAPI `@Schema` as needed.
 6. Add the **`@Path` JAX-RS resource** endpoint calling the use cases service; document with OpenAPI.
 7. Add an **integration test** for the new route.
 

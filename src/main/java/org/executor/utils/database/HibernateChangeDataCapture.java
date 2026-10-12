@@ -1,5 +1,6 @@
-package org.executor.utils.events;
+package org.executor.utils.database;
 
+import org.executor.utils.events.EntityChangeEvent;
 import io.quarkus.runtime.annotations.RegisterForReflection;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Event;

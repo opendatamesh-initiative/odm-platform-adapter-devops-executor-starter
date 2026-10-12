@@ -1,6 +1,5 @@
 package org.executor.utils.services;
 
-import jakarta.enterprise.event.Event;
 import jakarta.enterprise.inject.spi.CDI;
 import jakarta.inject.Inject;
 import jakarta.transaction.Status;
@@ -9,7 +8,7 @@ import jakarta.transaction.TransactionSynchronizationRegistry;
 import jakarta.transaction.Transactional;
 import org.executor.exceptions.BadRequestException;
 import org.executor.exceptions.NotFoundException;
-import org.executor.utils.events.CrudLifecycleEvent;
+import org.executor.utils.aspects.GenericCrudIntercepted;
 import org.executor.utils.repositories.Page;
 import org.executor.utils.repositories.PageRequest;
 import org.executor.utils.repositories.PagingAndSortingAndSpecificationExecutorRepository;
@@ -19,6 +18,7 @@ import java.io.Serializable;
 import java.util.Set;
 import java.util.function.Function;
 
+@GenericCrudIntercepted
 public abstract class GenericCrudServiceImpl<T, ID extends Serializable> implements GenericCrudService<T, ID> {
 
     @Inject
@@ -26,9 +26,6 @@ public abstract class GenericCrudServiceImpl<T, ID extends Serializable> impleme
 
     @Inject
     PageableSortValidator pageableSortValidator;
-
-    @Inject
-    Event<CrudLifecycleEvent> lifecycleEvents;
 
     @Inject
     TransactionSynchronizationRegistry transactionSynchronizationRegistry;
@@ -64,7 +61,6 @@ public abstract class GenericCrudServiceImpl<T, ID extends Serializable> impleme
         beforeCreation(objectToCreate);
         T result = getRepository().save(objectToCreate);
         afterCreation(objectToCreate, result);
-        lifecycleEvents.fire(CrudLifecycleEvent.CREATED);
         runAfterCommit(() -> afterCreationCommit(result));
         return result;
     }
@@ -78,7 +74,6 @@ public abstract class GenericCrudServiceImpl<T, ID extends Serializable> impleme
         beforeOverwrite(objectToOverwrite);
         T result = getRepository().save(objectToOverwrite);
         afterOverWrite(objectToOverwrite, result);
-        lifecycleEvents.fire(CrudLifecycleEvent.OVERWRITTEN);
         runAfterCommit(() -> afterOverwriteCommit(result));
         return result;
     }
@@ -90,7 +85,6 @@ public abstract class GenericCrudServiceImpl<T, ID extends Serializable> impleme
         beforeDelete(identifier);
         getRepository().deleteById(identifier);
         afterDelete(identifier);
-        lifecycleEvents.fire(CrudLifecycleEvent.DELETED);
     }
 
     @Override

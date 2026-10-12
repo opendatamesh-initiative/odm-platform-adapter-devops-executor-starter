@@ -1,4 +1,4 @@
-package org.executor.rest;
+package org.executor.utils.rest;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.ws.rs.container.ContainerRequestContext;

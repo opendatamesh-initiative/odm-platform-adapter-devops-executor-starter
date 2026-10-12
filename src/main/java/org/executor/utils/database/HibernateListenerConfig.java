@@ -1,4 +1,4 @@
-package org.executor.utils.events;
+package org.executor.utils.database;
 
 import io.quarkus.arc.properties.IfBuildProperty;
 import jakarta.annotation.PostConstruct;
