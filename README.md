@@ -1,8 +1,8 @@
 # Starter executor
 
-Reference implementation of the DevOps executor v2 API. It simulates pipeline runs in memory for end-to-end tests and demos. Runs are dropped when the process stops.
+Reference implementation of the DevOps executor v2 API. It is a **Quarkus 3** service that simulates pipeline runs in memory for end-to-end tests and demos. Runs are dropped when the process stops. There is no database: `quarkus.datasource.active` and `quarkus.hibernate-orm.active` are `false`.
 
-The service listens on port **9080**.
+The HTTP port is **9080** (`quarkus.http.port` in `application.yaml`).
 
 ## Requirements
 
@@ -12,8 +12,30 @@ The service listens on port **9080**.
 
 ## Run
 
+Live reload:
+
 ```bash
 ./mvnw quarkus:dev
+```
+
+Packaged runner (`target/quarkus-app/`):
+
+```bash
+./mvnw package
+java -jar target/quarkus-app/quarkus-run.jar
+```
+
+Docker (the image runs `quarkus-run.jar` on port 9080):
+
+```bash
+docker build -t odm-platform-adapter-devops-executor-starter .
+docker run --rm -p 9080:9080 odm-platform-adapter-devops-executor-starter
+```
+
+Tests (`@QuarkusTest`; `%test` sets `executor.simulation.run-duration` to `200ms`):
+
+```bash
+./mvnw test
 ```
 
 ## Endpoints
@@ -21,10 +43,11 @@ The service listens on port **9080**.
 | Method | Path | Request | Response |
 | --- | --- | --- | --- |
 | `POST` | `/api/v2/up/executor/tasks/start` | JSON body with `executorParameters` and `pipelineParameters` | `{ "providerRunId": "starter-<uuid>" }` |
-| `GET` | `/api/v2/up/executor/tasks/status?providerRunId=` | Query parameter `providerRunId` | `{ "providerRunId", "status" }` where `status` is `RUNNING`, `SUCCEEDED`, or `FAILED` |
+| `GET` | `/api/v2/up/executor/tasks/status?providerRunId=` | Query parameter `providerRunId` | `{ "providerRunId", "status" }` where `status` is `RUNNING`, `SUCCEEDED`, `FAILED`, or `CANCELED` |
 | `GET` | `/api/v2/up/executor/tasks/logs?providerRunId=` | Query parameter `providerRunId` | `{ "content", "generatedAt" }` |
+| `POST` | `/api/v2/up/executor/tasks/cancel` | `{ "providerRunId" }` | empty **200** |
 
-A start request without `executorParameters` returns **400**, and the body names `executorParameters`. An unknown `providerRunId` returns **404**.
+A start request without `executorParameters` returns **400**, and the body names `executorParameters`. An unknown `providerRunId` returns **404**. Cancel of a run that has already ended returns **409**.
 
 `executorParameters` carries `repositoryKey`, `dataProductRepo` (`providerType`, `providerBaseUrl`, `externalIdentifier`, `name`, `ownerId`, `ownerType`, `remoteUrlHttp`, `defaultBranch`), `ref` (`name`, `type`), and `pipelineIdentifier`. Unknown JSON properties are ignored. No activity or task identifiers are required.
 
