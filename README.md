@@ -1,134 +1,59 @@
-# Dummy Executor API
+# Starter executor
 
-## Overview
+Reference implementation of the DevOps executor v2 API. It simulates pipeline runs in memory for end-to-end tests and demos. Runs are dropped when the process stops.
 
-The **Dummy Executor API** is a simple RESTful service built with Spring Boot to test ODM Task. It provides an endpoint
-to submit tasks that are executed asynchronously. The service processes each task, simulates a delay, and optionally
-sends a callback with the result.
+The service listens on port **9080**.
 
-## Project Structure
+## Requirements
 
-- **Controller**: Handles incoming HTTP requests and delegates processing to the service layer.
-- **Service**: Contains the business logic for task execution and callback handling.
-- **Resources**: Defines the data structures used for tasks and task results.
+- Java 21
+- Maven 3.6+ (or the included `./mvnw` wrapper)
 
-## Key Features
+## Run
 
-- Asynchronous task execution using `@Async`.
-- Simulated processing delay to mimic real-world operations.
-- Callback mechanism to notify external services with the task results.
+```bash
+./mvnw spring-boot:run
+```
 
-## Technologies Used
+## Endpoints
 
-- **Spring Boot** for building the REST API.
-- **Spring Scheduling** for asynchronous method execution.
-- **RestTemplate** for making HTTP calls.
-- **SLF4J & Logback** for logging.
+| Method | Path | Request | Response |
+| --- | --- | --- | --- |
+| `POST` | `/api/v2/up/executor/tasks/start` | JSON body with `executorParameters` and `pipelineParameters` | `{ "providerRunId": "starter-<uuid>" }` |
+| `GET` | `/api/v2/up/executor/tasks/status?providerRunId=` | Query parameter `providerRunId` | `{ "providerRunId", "status" }` where `status` is `RUNNING`, `SUCCEEDED`, or `FAILED` |
+| `GET` | `/api/v2/up/executor/tasks/logs?providerRunId=` | Query parameter `providerRunId` | `{ "content", "generatedAt" }` |
 
-## How to Set Up
+A start request without `executorParameters` returns **400**, and the body names `executorParameters`. An unknown `providerRunId` returns **404**.
 
-### Prerequisites
+`executorParameters` carries `repositoryKey`, `dataProductRepo` (`providerType`, `providerBaseUrl`, `externalIdentifier`, `name`, `ownerId`, `ownerType`, `remoteUrlHttp`, `defaultBranch`), `ref` (`name`, `type`), and `pipelineIdentifier`. Unknown JSON properties are ignored. No activity or task identifiers are required.
 
-- **Java 11 or higher**
-- **Maven 3.6+**
-- **Spring Boot** (embedded)
-- **ODM Platform**
+## Simulation
 
-### Installation
+Defaults (`executor.simulation` in `application.yml`):
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/yourusername/dummy-executor-api.git
-   cd dummy-executor-api
+- `run-duration`: `5s`
+- `outcome`: `SUCCEEDED`
 
-## How To Use
+A run stays `RUNNING` until `startedAt` plus the planned duration, then reports the planned outcome.
 
-### 1. ODM
+Two reserved pipeline parameters override those defaults for that run. The starter reads them the way a pipeline reads its own inputs.
 
-To use the executor, the DevOps and Registry modules need to be properly configured and running. For a complete guide on
-ODM, visit [ODM Documentation](https://dpds.opendatamesh.org/).
+- `starter.outcome`: `SUCCEEDED` or `FAILED`, compared case-insensitively. Any other value keeps the configured default.
+- `starter.durationSeconds`: a non-negative integer number of seconds. Any other value keeps the configured default.
 
-### 2. DevOps Module Application File Setup
+The logs endpoint returns one block. It lists the run id, repository name, `repositoryKey`, ref name and type, pipeline identifier, pipeline parameters as received, the names of request headers whose names start with `x-odm-` (never the header values), the start and end times, and the outcome.
 
-Within the `properties` file of the ODM DevOps module, include the following property:
+Each call writes one info log line that contains only the provider run id. Header values, secret values, and parameter values are never written to the process log.
+
+## DevOps configuration
+
+Declare the starter on the DevOps server (`application-dev.yml`, and the same shape in `application-test.yml`):
 
 ```yaml
-utilityPlane:
-  executorServices:
-    dummy:
-      active: true
-      address: http://localhost:9080
-      checkAfterCallback: false
+odm:
+  utility-plane:
+    executor-services:
+      starter:
+        address: http://localhost:9080
+        execution-mode: full-control
 ```
-
-### 3. Create a Data Product
-
-Once the ODM Registry server is operational, define a data product and its corresponding version. To create a Data Product, execute a POST request on the following endpoint: `/api/v1/pp/registry/products`    with the payload:
-
-```json
-{
-  "fullyQualifiedName": "urn:org.opendatamesh:dataproducts:demo-domain-dpc",
-  "description": "Description",
-  "domain": "demoDomain"
-}
-```
-
-### 4. Create a Data Product Version
-
-After successfully creating a Data Product, create a version by executing a POST request on the endpoint `/api/v1/pp/registry/products/:id/versions`, where `:id` is the identifier of the previously created data product. The request body should be structured as follows:
-```json
-{
-  "dataProductDescriptor": "1.0.0",
-  "info": {
-    "fullyQualifiedName": "urn:org.opendatamesh:dataproducts:demo-domain-dpc",
-    "domain": "demoDomain",
-    "name": "demo-domain-dpc",
-    "version": "1.0.0",
-    "displayName": "DEMO Domain DP",
-    "description": "DEMO",
-    "x-businessUnit": "Demo",
-    "x-product": "Payroll",
-    "x-subdomain": "Payroll",
-    "x-scope": "externalData",
-    "owner": {
-      "id": "demo@demo.com",
-      "name": "John Doe"
-    },
-    "contactPoints": []
-  },
-  "interfaceComponents": {
-    "inputPorts": [],
-    "outputPorts": []
-  },
-  "internalComponents": {
-    "lifecycleInfo": {
-      "dev": [
-        {
-          "service": {
-            "$href": "dummy"
-          },
-          "template": {
-            "specification": "spec",
-            "specificationVersion": "2.0",
-            "definition": {}
-          },
-          "configurations": {
-            "params": {},
-            "stagesToSkip": []
-          }
-        }
-      ]
-    }
-  }
-}
-```
-
-### 5. Start DevOps Server
-
-Ensure that the DevOps server for ODM is started and running correctly.
-
-### 6. Start Activity on Blindata
-
-Navigate to the data product version detail page within Blindata and select "Plan Activity" to create an activity. Note that activities must be pre-defined in the internalComponents.lifecycleInfo section of the data product descriptor.
-
-Once the activity is planned, click "Start Activity" on the activity detail page in Blindata to commence the process.
