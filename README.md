@@ -25,9 +25,17 @@ Packaged runner (`target/quarkus-app/`):
 java -jar target/quarkus-app/quarkus-run.jar
 ```
 
-Docker (the image runs `quarkus-run.jar` on port 9080):
+Native executable (Mandrel/GraalVM locally, or container build via Docker):
 
 ```bash
+./mvnw package -DskipTests -Dnative -Dquarkus.native.container-build=true
+./target/odm-platform-adapter-devops-executor-starter-*-runner
+```
+
+Docker (native runtime image on port 9080; build the native binary first):
+
+```bash
+./mvnw package -DskipTests -Dnative -Dquarkus.native.container-build=true
 docker build -t odm-platform-adapter-devops-executor-starter .
 docker run --rm -p 9080:9080 odm-platform-adapter-devops-executor-starter
 ```

@@ -1,10 +1,13 @@
-FROM amazoncorretto:21-alpine-jdk
-VOLUME /tmp
-ADD ./ /code
-RUN cd /code && ./mvnw --no-transfer-progress package -DskipTests \
-    && mkdir -p /app \
-    && cp -r /code/target/quarkus-app/. /app/ \
-    && cd / && rm -rf /code && rm -rf /root/.m2
-ENV JAVA_OPTS=""
+# Runtime image for a native executable built on the host or in CI, e.g.:
+#   ./mvnw package -DskipTests -Dnative -Dquarkus.native.container-build=true
+FROM registry.access.redhat.com/ubi9/ubi-minimal:9.8
+WORKDIR /work/
+RUN chown 1001 /work \
+    && chmod "g+rwX" /work \
+    && chown 1001:root /work
+COPY --chown=1001:root --chmod=0755 target/*-runner /work/application
+
 EXPOSE 9080
-ENTRYPOINT [ "sh", "-c", "java $JAVA_OPTS -jar /app/quarkus-run.jar" ]
+USER 1001
+
+ENTRYPOINT ["./application", "-Dquarkus.http.host=0.0.0.0"]

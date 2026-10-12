@@ -91,11 +91,23 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
           cache: maven
-      - name: Build Maven package
-        run: mvn install -DskipTests
+      - name: Set up Maven settings
+        run: |
+          mkdir -p ~/.m2
+          echo "<settings>
+            <servers>
+              <server>
+                <id>odm-spec-parser-repo</id>
+                <username>your-github-username</username>
+                <password>${{ secrets.GITHUB_TOKEN }}</password>
+              </server>
+            </servers>
+          </settings>" > ~/.m2/settings.xml
+      - name: Build native executable
+        run: ./mvnw -B package -DskipTests -Dnative -Dquarkus.native.container-build=true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build Docker images
+      - name: Build Docker image
         run: docker build . --file Dockerfile --tag ${{ env.IMAGE_NAME }} --label "runnumber=${{ github.run_id }}"
       - name: Login to GitHub Container Registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u $GITHUB_ACTOR --password-stdin
@@ -110,7 +122,7 @@ jobs:
           DOCKER_USER: ${{ secrets.DOCKER_USERNAME }}
           DOCKER_PWD: ${{ secrets.DOCKER_PASSWORD }}
         run: docker login -u $DOCKER_USER -p $DOCKER_PWD
-      - name: DockerHub images build
-        run: docker build . --file Dockerfile --tag opendatamesh/${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }}
-      - name: DockerHub images push
-        run: docker push opendatamesh/${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }}
+      - name: Push images to DockerHub
+        run: |
+          docker tag ${{ env.IMAGE_NAME }} opendatamesh/${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }}
+          docker push opendatamesh/${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }}
