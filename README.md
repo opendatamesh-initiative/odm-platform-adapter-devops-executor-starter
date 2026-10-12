@@ -30,7 +30,7 @@ A start request without `executorParameters` returns **400**, and the body names
 
 ## Simulation
 
-Defaults (`executor.simulation` in `application.properties`):
+Defaults (`executor.simulation` in `application.yaml`):
 
 - `run-duration`: `5s`
 - `outcome`: `SUCCEEDED`
