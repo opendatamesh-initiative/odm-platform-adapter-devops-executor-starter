@@ -48,7 +48,7 @@ Optional **hooks** (empty defaults; override when needed):
 
 **Pagination:** `Page`, `PageRequest`, and `Sort` live in `org.executor.utils.repositories`. `findAll` requires a `PageRequest`: `page >= 0` and `size > 0`, otherwise `BadRequestException`. Override `getAllowedSortProperties()` when sortable fields must be restricted. `PageableSortValidator` rejects unknown sort paths via the JPA metamodel, including nested and embedded paths. When `getAllowedSortProperties()` returns a set, a property outside that set is rejected before the metamodel is consulted.
 
-**Lifecycle events:** `create`, `overwrite`, and `delete` fire `CrudLifecycleEvent` (`CREATED`, `OVERWRITTEN`, `DELETED`) from the write method, inside the transaction. Observers use `@Observes(during = TransactionPhase.AFTER_SUCCESS)`. `HibernateChangeDataCapture` fires `EntityChangeEvent` from the Hibernate post-insert, post-update, and post-delete listener. Observers of `EntityChangeEvent` use the same `@Observes(during = TransactionPhase.AFTER_SUCCESS)`.
+**Lifecycle events:** `CrudLifecycleInterceptor` fires `CrudLifecycleEvent` (`CREATED`, `OVERWRITTEN`, `DELETED`) around the write methods. Observers use `@Observes(during = TransactionPhase.AFTER_SUCCESS)`. `HibernateChangeDataCapture` (`org.executor.utils.database`) fires `EntityChangeEvent` from the Hibernate post-insert, post-update, and post-delete listener. Observers of `EntityChangeEvent` use the same `@Observes(during = TransactionPhase.AFTER_SUCCESS)`.
 
 ### `GenericMappedCrudServiceImpl<R, T, ID>`
 
@@ -107,11 +107,17 @@ When one service calls another (e.g. loading a related entity in `reconcile`), u
 
 ---
 
+## CRUD AOP (interceptor wrap)
+
+`GenericCrudServiceImpl` is bound with `@GenericCrudIntercepted`. `CrudLifecycleInterceptor` extends `GenericCrudInterceptor` and fires `CrudLifecycleEvent` after create / overwrite / delete (including the mapped `*Resource` methods).
+
+To wrap the same methods (history, stewardship, emitters, …), subclass `GenericCrudInterceptor`, override `aroundFind` / `aroundCreate` / `aroundOverwrite` / `aroundDelete`, and register the subclass as a CDI interceptor with `@GenericCrudIntercepted` and `@Priority`. Nested proxy calls (for example `createResource` → `create`) skip the `around*` methods so advice runs once.
+
 ## JAX-RS resources and public API
 
 - Prefer **`…Resource` methods** for HTTP adapters so the layer works with `R`, not entities.
 - If path parameters must **override** fields in the body (e.g. id in URL vs body), set the field from the path, then call the `*Resource` method.
-- JAX-RS resources live under `org.executor.rest`, annotated with `@Path`.
+- JAX-RS resources live in the adopting service (`@Path`). Do not put them under a versioned `rest` package. Template inbound HTTP helpers live in `org.executor.utils.rest`. Outbound HTTP uses `org.executor.utils.client.RestUtils`.
 
 ---
 
@@ -136,7 +142,7 @@ Name filters can use `SpecsUtils.escapeLikeParameter`. Return an allow-list from
 
 3. **Repository** must support paging and specifications if you use the filtered base class. Extend `EntityManagerRepository`. Static nested spec helpers on the repository are a common style; `SpecsUtils` combines them with AND/OR.
 
-4. **Throw** `NotFoundException`, `BadRequestException`, and `InternalException` (`ExecutorStarterApiException` in `org.executor.exceptions`). The JAX-RS `ExceptionMapper` in `org.executor.rest` maps those exceptions to HTTP status codes.
+4. **Throw** `NotFoundException`, `BadRequestException`, `ResourceConflictException`, and `InternalException` (`ExecutorStarterApiException` in `org.executor.exceptions`). The adopting service maps those exceptions to HTTP status codes.
 
 5. If an aggregate **must not** support generic `findAll(PageRequest)`, override those methods and throw an explicit "not supported" (or equivalent) with a clear message.
 

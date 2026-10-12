@@ -2,12 +2,16 @@ package org.executor.exceptions;
 
 import jakarta.ws.rs.core.Response;
 
-public class ConflictException extends ExecutorStarterApiException {
+public class ResourceConflictException extends ExecutorStarterApiException {
 
     private static final long serialVersionUID = 1L;
 
-    public ConflictException(String message) {
+    public ResourceConflictException(String message) {
         super(message);
+    }
+
+    public ResourceConflictException(String message, Throwable cause) {
+        super(message, cause);
     }
 
     @Override

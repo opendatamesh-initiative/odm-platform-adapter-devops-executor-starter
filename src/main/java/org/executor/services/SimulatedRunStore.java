@@ -3,7 +3,7 @@ package org.executor.services;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.executor.config.SimulationProperties;
-import org.executor.exceptions.ConflictException;
+import org.executor.exceptions.ResourceConflictException;
 import org.executor.exceptions.NotFoundException;
 import org.executor.resources.ExecutorParametersRes;
 import org.executor.resources.GitRefRes;
@@ -74,7 +74,7 @@ public class SimulatedRunStore {
                 throw new NotFoundException("Unknown providerRunId");
             }
             if (ended(run) && !run.canceled()) {
-                throw new ConflictException("Run has already ended");
+                throw new ResourceConflictException("Run has already ended");
             }
             return run.withCanceled();
         });

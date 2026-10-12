@@ -20,6 +20,7 @@
         <compiler-plugin.version>3.14.0</compiler-plugin.version>
         <surefire-plugin.version>3.5.4</surefire-plugin.version>
         <hibernate-jpamodelgen.version>6.4.1.Final</hibernate-jpamodelgen.version>
+        <java-jwt.version>3.18.2</java-jwt.version>
     </properties>
 
     <dependencyManagement>
@@ -64,6 +65,11 @@
             <artifactId>hibernate-jpamodelgen</artifactId>
             <version>${hibernate-jpamodelgen.version}</version>
             <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.auth0</groupId>
+            <artifactId>java-jwt</artifactId>
+            <version>${java-jwt.version}</version>
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>

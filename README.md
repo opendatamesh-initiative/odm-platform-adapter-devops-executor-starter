@@ -8,7 +8,7 @@ The service listens on port **9080**.
 
 - Java 21
 - Maven 3.9+ (or the included `./mvnw` wrapper)
-- Quarkus 3.40.1, from `blindata-backend-service-template-quarkus` 1.0.0 (`template.yaml`)
+- Quarkus 3.40.1, from `blindata-backend-service-template-quarkus` 1.0.1 (`template.yaml`)
 
 ## Run
 

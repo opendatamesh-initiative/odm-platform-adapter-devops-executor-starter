@@ -95,7 +95,7 @@ These apply to most backend work surfaced through REASONS-Canvas. Feature-specif
 
 ### CDI and dependency injection
 
-- **`@Path`** on `*UseCaseResource` in `org.executor.rest`, with `@Produces(MediaType.APPLICATION_JSON)`.
+- **`@Path`** on `*UseCaseResource` in the adopting service (next to the aggregate, or another package the service chooses), with `@Produces(MediaType.APPLICATION_JSON)`. Do not put HTTP adapters under a versioned `rest` package (`rest.v1`, `rest.v2`). Template HTTP helpers live in `org.executor.utils.rest`.
 - **`@ApplicationScoped`** on `*UseCasesService` and concrete CRUD service subclasses.
 - **`@ApplicationScoped`** on the use-case **factory only** in that slice; outbound port impls are **plain Java** (`new` in the factory). The use case class is plain Java, constructed with `new`.
 - **No CDI stereotypes** on use case classes or `*OutboundPortImpl`.
@@ -103,14 +103,14 @@ These apply to most backend work surfaced through REASONS-Canvas. Feature-specif
 
 ### REST resources and OpenAPI
 
-- Request/response DTOs under `org.executor.rest.<aggregate>.usecases...` with naming `*CommandRes`, `*ResultRes` (and related `*Res`).
+- Request/response DTOs live with the HTTP adapter. Naming: `*CommandRes`, `*ResultRes` (and related `*Res`). Do not put a version segment in the package name.
 - Document the JAX-RS resource with `@Tag`, `@Operation`, `@ApiResponses`, `@Parameter` (`io.swagger.v3.oas.annotations`); `@Schema` on DTO fields where useful; `@Hidden` for non-public endpoints.
 - Convert `*Res` ↔ entities in the **use cases service** (or CRUD `toRes` / `toEntity`), not in the JAX-RS resource or the use case class.
 
 ### Exceptions and API errors
 
-- Throw `NotFoundException`, `BadRequestException`, and `InternalException` from `org.executor.exceptions`. They extend `ExecutorStarterApiException` (`getErrorName()`, `getStatus()`).
-- A JAX-RS `ExceptionMapper` in `org.executor.rest` maps those exceptions to a consistent HTTP error body; do not leak sensitive internals in messages.
+- Throw `NotFoundException`, `BadRequestException`, `ResourceConflictException`, and `InternalException` from `org.executor.exceptions`. They extend `ExecutorStarterApiException` (`getErrorName()`, `getStatus()`).
+- The adopting service maps those exceptions to a consistent HTTP error body; do not leak sensitive internals in messages. Do not put that mapper under `org.executor.rest`.
 - CRUD **`validate` / `reconcile` / hooks** throw exceptions that the mapper maps to stable HTTP status codes.
 
 ### Data validation
@@ -123,12 +123,13 @@ These apply to most backend work surfaced through REASONS-Canvas. Feature-specif
 
 - **Use cases:** use shared `TransactionalOutboundPort` (`doInTransaction`, `doInTransactionWithResults`) for atomic work—do not reimplement transaction plumbing per use case. `DefaultTransactionalOutboundPortImpl` runs the work with `QuarkusTransaction.joiningExisting()` and executes `SET TRANSACTION ISOLATION LEVEL SERIALIZABLE` on the PostgreSQL connection before the caller’s work.
 - **CRUD:** the template method in `GenericCrudServiceImpl` runs `create`, `overwrite`, and `delete` as `@Transactional`. `afterCreationCommit` and `afterOverwriteCommit` run from `TransactionSynchronizationRegistry` after `STATUS_COMMITTED`. Mapped reads use `TransactionHandler` (`runInTransaction` is `REQUIRED`, `runInNewTransaction` is `REQUIRES_NEW`) when mapping touches lazy associations.
-- **Lifecycle events:** write methods fire `CrudLifecycleEvent`. `HibernateChangeDataCapture` fires `EntityChangeEvent` from the post-insert, post-update, and post-delete listener. Observers use `@Observes(during = TransactionPhase.AFTER_SUCCESS)`.
+- **Lifecycle events:** `CrudLifecycleInterceptor` (a `GenericCrudInterceptor`) fires `CrudLifecycleEvent` around create/overwrite/delete. `HibernateChangeDataCapture` fires `EntityChangeEvent` from the post-insert, post-update, and post-delete listener. Observers use `@Observes(during = TransactionPhase.AFTER_SUCCESS)`. Extra CRUD wraps subclass `GenericCrudInterceptor` and bind with `@GenericCrudIntercepted`.
+- **Outbound HTTP:** call other services through `RestUtils` (`org.executor.utils.client`). Build with `RestUtilsFactory.getRestUtils()`, `getAuthenticatedRestUtils`, `getAsyncRestUtils`, or `getAuthenticatedAsyncRestUtils`. Identifier path variables use `{id}`. Do not put a version segment in that package.
 
 ### Logging
 
 - SLF4J with class-level logger; log at **info/warn** for business-significant steps and failures; **never** log secrets or credentials.
-- Prefer structured context (identifiers, operation phase) consistent with surrounding modules. `CorrelationIdFilter` copies the `CORRELATION_ID` request header to MDC key `correlation_id` and clears it after the response.
+- Prefer structured context (identifiers, operation phase) consistent with surrounding modules. `CorrelationIdFilter` (`org.executor.utils.rest`) copies the `CORRELATION_ID` request header to MDC key `correlation_id` and clears it after the response.
 
 ### Testing
 
@@ -172,7 +173,7 @@ HTTP → *UseCaseResource → *UseCasesService → *Factory → UseCase
 
 | Layer | Rule |
 |-------|------|
-| `org.executor.rest` `*Res` | Only the JAX-RS resource + use cases service; **never** in `org.executor.<aggregate>.services.usecases.*` |
+| HTTP `*Res` | Only the JAX-RS resource + use cases service; **never** in `org.executor.<aggregate>.services.usecases.*` |
 | Command | Domain types only (entities, UUIDs, enums, small domain records) |
 | Presenter | Domain result types only; service maps to `*ResultRes` |
 | Use case class | Implements `UseCase`; package-private; plain Java (`new`); **no** CDI annotations |
@@ -197,7 +198,7 @@ HTTP → *UseCaseResource → *UseCasesService → *Factory → UseCase
 2. Outbound port interfaces + plain impls.
 3. `@ApplicationScoped` factory with `new` for impls and the use case.
 4. `*UseCasesService` method: `*CommandRes` → command, factory + `execute()`, presenter → `*ResultRes`.
-5. `*CommandRes` / `*ResultRes` under `org.executor.rest.<aggregate>.usecases...`.
+5. `*CommandRes` / `*ResultRes` next to the HTTP adapter (no versioned `rest` package).
 6. `*UseCaseResource` endpoint (`@Path`) + OpenAPI.
 7. `*UseCaseResourceIT`.
 
@@ -237,7 +238,7 @@ HTTP → *UseCaseResource → *UseCasesService → *Factory → UseCase
 
 Paging types are `Page`, `PageRequest`, and `Sort` in `org.executor.utils.repositories`. `PageableSortValidator` rejects unknown sort paths via the JPA metamodel, including nested and embedded paths.
 
-**HTTP:** Prefer `*Resource` methods; path id overrides body before the call. The JAX-RS resource is `@Path` under `org.executor.rest`.
+**HTTP:** Prefer `*Resource` methods; path id overrides body before the call. The JAX-RS resource is `@Path` in the adopting service, not under a versioned `rest` package.
 
 **Design tips for Norms / Safeguards:**
 
