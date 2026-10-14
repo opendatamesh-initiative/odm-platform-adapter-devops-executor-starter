@@ -5,7 +5,7 @@ import io.restassured.http.ContentType;
 import org.executor.resources.ExecutorParametersRes;
 import org.executor.resources.GitRefRes;
 import org.executor.resources.DataProductRepoRes;
-import org.executor.resources.TaskCancelCommandRes;
+import org.executor.resources.TaskRunCommandRes;
 import org.executor.resources.TaskStartCommandRes;
 import org.junit.jupiter.api.Test;
 
@@ -18,7 +18,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 @QuarkusTest
-class ExecutorTaskResourceTest {
+class ExecutorTaskControllerTest {
 
     private static final String START = "/api/v2/up/executor/tasks/start";
     private static final String STATUS = "/api/v2/up/executor/tasks/status";
@@ -44,8 +44,9 @@ class ExecutorTaskResourceTest {
         String providerRunId = startRun(Map.of());
 
         given()
-                .queryParam("providerRunId", providerRunId)
-                .when().get(STATUS)
+                .contentType(ContentType.JSON)
+                .body(runBody(providerRunId))
+                .when().post(STATUS)
                 .then()
                 .statusCode(200)
                 .body("providerRunId", org.hamcrest.Matchers.equalTo(providerRunId))
@@ -54,8 +55,9 @@ class ExecutorTaskResourceTest {
         Thread.sleep(300);
 
         given()
-                .queryParam("providerRunId", providerRunId)
-                .when().get(STATUS)
+                .contentType(ContentType.JSON)
+                .body(runBody(providerRunId))
+                .when().post(STATUS)
                 .then()
                 .statusCode(200)
                 .body("providerRunId", org.hamcrest.Matchers.equalTo(providerRunId))
@@ -79,8 +81,9 @@ class ExecutorTaskResourceTest {
         String providerRunId = startRun(pipelineParameters);
 
         given()
-                .queryParam("providerRunId", providerRunId)
-                .when().get(STATUS)
+                .contentType(ContentType.JSON)
+                .body(runBody(providerRunId))
+                .when().post(STATUS)
                 .then()
                 .statusCode(200)
                 .body("providerRunId", org.hamcrest.Matchers.equalTo(providerRunId))
@@ -108,6 +111,42 @@ class ExecutorTaskResourceTest {
     /**
      * Feature: Starter executor (repository odm-platform-adapter-devops-executor-starter)
      *
+     * Scenario: A status call without executor parameters is refused
+     *   When the status body has a providerRunId but no executorParameters
+     *   Then the response is 400 and names executorParameters
+     */
+    @Test
+    void whenStatusOmitsExecutorParametersThenBadRequestNamesTheField() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("{\"providerRunId\": \"starter-does-not-exist\"}")
+                .when().post(STATUS)
+                .then()
+                .statusCode(400)
+                .body(containsString("executorParameters"));
+    }
+
+    /**
+     * Feature: Starter cancel
+     *
+     * Scenario: A cancel call without executor parameters is refused
+     *   When the cancel body has a providerRunId but no executorParameters
+     *   Then the response is 400 and names executorParameters
+     */
+    @Test
+    void whenCancelOmitsExecutorParametersThenBadRequestNamesTheField() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("{\"providerRunId\": \"starter-does-not-exist\"}")
+                .when().post(CANCEL)
+                .then()
+                .statusCode(400)
+                .body(containsString("executorParameters"));
+    }
+
+    /**
+     * Feature: Starter executor (repository odm-platform-adapter-devops-executor-starter)
+     *
      * Scenario: An unknown run id is not found
      *   When the status or the logs of an unknown providerRunId are read
      *   Then the response is 404
@@ -115,14 +154,16 @@ class ExecutorTaskResourceTest {
     @Test
     void whenUnknownRunIdThenNotFound() {
         given()
-                .queryParam("providerRunId", "starter-does-not-exist")
-                .when().get(STATUS)
+                .contentType(ContentType.JSON)
+                .body(runBody("starter-does-not-exist"))
+                .when().post(STATUS)
                 .then()
                 .statusCode(404);
 
         given()
-                .queryParam("providerRunId", "starter-does-not-exist")
-                .when().get(LOGS)
+                .contentType(ContentType.JSON)
+                .body(runBody("starter-does-not-exist"))
+                .when().post(LOGS)
                 .then()
                 .statusCode(404);
     }
@@ -143,8 +184,9 @@ class ExecutorTaskResourceTest {
         String providerRunId = startRun(pipelineParameters, "x-odm-token", "s3cr3t");
 
         given()
-                .queryParam("providerRunId", providerRunId)
-                .when().get(LOGS)
+                .contentType(ContentType.JSON)
+                .body(runBody(providerRunId))
+                .when().post(LOGS)
                 .then()
                 .statusCode(200)
                 .body("generatedAt", org.hamcrest.Matchers.notNullValue())
@@ -176,22 +218,24 @@ class ExecutorTaskResourceTest {
         String providerRunId = startRun(pipelineParameters);
 
         given()
-                .queryParam("providerRunId", providerRunId)
-                .when().get(STATUS)
+                .contentType(ContentType.JSON)
+                .body(runBody(providerRunId))
+                .when().post(STATUS)
                 .then()
                 .statusCode(200)
                 .body("status", org.hamcrest.Matchers.equalTo("RUNNING"));
 
         given()
                 .contentType(ContentType.JSON)
-                .body(cancelBody(providerRunId))
+                .body(runBody(providerRunId))
                 .when().post(CANCEL)
                 .then()
                 .statusCode(200);
 
         given()
-                .queryParam("providerRunId", providerRunId)
-                .when().get(STATUS)
+                .contentType(ContentType.JSON)
+                .body(runBody(providerRunId))
+                .when().post(STATUS)
                 .then()
                 .statusCode(200)
                 .body("providerRunId", org.hamcrest.Matchers.equalTo(providerRunId))
@@ -216,23 +260,25 @@ class ExecutorTaskResourceTest {
         String providerRunId = startRun(pipelineParameters);
 
         given()
-                .queryParam("providerRunId", providerRunId)
-                .when().get(STATUS)
+                .contentType(ContentType.JSON)
+                .body(runBody(providerRunId))
+                .when().post(STATUS)
                 .then()
                 .statusCode(200)
                 .body("status", org.hamcrest.Matchers.equalTo("SUCCEEDED"));
 
         given()
                 .contentType(ContentType.JSON)
-                .body(cancelBody(providerRunId))
+                .body(runBody(providerRunId))
                 .when().post(CANCEL)
                 .then()
                 .statusCode(409)
                 .body(containsString("Run has already ended"));
 
         given()
-                .queryParam("providerRunId", providerRunId)
-                .when().get(STATUS)
+                .contentType(ContentType.JSON)
+                .body(runBody(providerRunId))
+                .when().post(STATUS)
                 .then()
                 .statusCode(200)
                 .body("providerRunId", org.hamcrest.Matchers.equalTo(providerRunId))
@@ -251,7 +297,7 @@ class ExecutorTaskResourceTest {
     void whenRunUnknownThenCancelIsNotFound() throws Exception {
         given()
                 .contentType(ContentType.JSON)
-                .body(cancelBody("starter-does-not-exist"))
+                .body(runBody("starter-does-not-exist"))
                 .when().post(CANCEL)
                 .then()
                 .statusCode(404)
@@ -279,13 +325,22 @@ class ExecutorTaskResourceTest {
         return startRun(pipelineParameters, null, null);
     }
 
-    private TaskCancelCommandRes cancelBody(String providerRunId) {
-        TaskCancelCommandRes command = new TaskCancelCommandRes();
+    private TaskRunCommandRes runBody(String providerRunId) {
+        TaskRunCommandRes command = new TaskRunCommandRes();
+        command.setExecutorParameters(executorParameters());
         command.setProviderRunId(providerRunId);
         return command;
     }
 
+
     private TaskStartCommandRes body(Map<String, String> pipelineParameters) {
+        TaskStartCommandRes command = new TaskStartCommandRes();
+        command.setExecutorParameters(executorParameters());
+        command.setPipelineParameters(pipelineParameters);
+        return command;
+    }
+
+    private ExecutorParametersRes executorParameters() {
         DataProductRepoRes repository = new DataProductRepoRes();
         repository.setProviderType("GITHUB");
         repository.setProviderBaseUrl("https://github.com");
@@ -305,10 +360,6 @@ class ExecutorTaskResourceTest {
         executorParameters.setDataProductRepo(repository);
         executorParameters.setRef(ref);
         executorParameters.setPipelineIdentifier(PIPELINE_IDENTIFIER);
-
-        TaskStartCommandRes command = new TaskStartCommandRes();
-        command.setExecutorParameters(executorParameters);
-        command.setPipelineParameters(pipelineParameters);
-        return command;
+        return executorParameters;
     }
 }
