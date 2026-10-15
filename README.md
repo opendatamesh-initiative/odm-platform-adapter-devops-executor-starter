@@ -51,11 +51,11 @@ Tests (`@QuarkusTest`; `%test` sets `executor.simulation.run-duration` to `200ms
 | Method | Path | Request | Response |
 | --- | --- | --- | --- |
 | `POST` | `/api/v2/up/executor/tasks/start` | JSON body with `executorParameters` and `pipelineParameters` | `{ "providerRunId": "starter-<uuid>" }` |
-| `GET` | `/api/v2/up/executor/tasks/status?providerRunId=` | Query parameter `providerRunId` | `{ "providerRunId", "status" }` where `status` is `RUNNING`, `SUCCEEDED`, `FAILED`, or `CANCELED` |
-| `GET` | `/api/v2/up/executor/tasks/logs?providerRunId=` | Query parameter `providerRunId` | `{ "content", "generatedAt" }` |
-| `POST` | `/api/v2/up/executor/tasks/cancel` | `{ "providerRunId" }` | empty **200** |
+| `POST` | `/api/v2/up/executor/tasks/status` | `{ "executorParameters", "providerRunId" }` | `{ "providerRunId", "status" }` where `status` is `RUNNING`, `SUCCEEDED`, `FAILED`, or `CANCELED` |
+| `POST` | `/api/v2/up/executor/tasks/logs` | `{ "executorParameters", "providerRunId" }` | `{ "content", "generatedAt" }` |
+| `POST` | `/api/v2/up/executor/tasks/cancel` | `{ "executorParameters", "providerRunId" }` | empty **200** |
 
-A start request without `executorParameters` returns **400**, and the body names `executorParameters`. An unknown `providerRunId` returns **404**. Cancel of a run that has already ended returns **409**.
+A request without `executorParameters` returns **400** on every endpoint (start, status, logs, cancel), and the body names `executorParameters`. A request without `providerRunId` returns **400** on status, logs and cancel, and the body names `providerRunId`. An unknown `providerRunId` returns **404**. Cancel of a run that has already ended returns **409**.
 
 `executorParameters` carries `repositoryKey`, `dataProductRepo` (`providerType`, `providerBaseUrl`, `externalIdentifier`, `name`, `ownerId`, `ownerType`, `remoteUrlHttp`, `defaultBranch`), `ref` (`name`, `type`), and `pipelineIdentifier`. Unknown JSON properties are ignored. No activity or task identifiers are required.
 

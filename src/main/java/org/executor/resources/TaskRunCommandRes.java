@@ -3,11 +3,21 @@ package org.executor.resources;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class TaskCancelCommandRes {
+public class TaskRunCommandRes {
+
+    private ExecutorParametersRes executorParameters;
 
     private String providerRunId;
 
-    public TaskCancelCommandRes() {
+    public TaskRunCommandRes() {
+    }
+
+    public ExecutorParametersRes getExecutorParameters() {
+        return executorParameters;
+    }
+
+    public void setExecutorParameters(ExecutorParametersRes executorParameters) {
+        this.executorParameters = executorParameters;
     }
 
     public String getProviderRunId() {

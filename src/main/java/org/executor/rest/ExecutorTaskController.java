@@ -3,18 +3,16 @@ package org.executor.rest;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
-import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
-import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import org.executor.exceptions.BadRequestException;
-import org.executor.resources.TaskCancelCommandRes;
 import org.executor.resources.TaskLogsRes;
+import org.executor.resources.TaskRunCommandRes;
 import org.executor.resources.TaskStartCommandRes;
 import org.executor.resources.TaskStartResultRes;
 import org.executor.resources.TaskStatusRes;
@@ -30,16 +28,16 @@ import java.util.Locale;
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 @ApplicationScoped
-public class ExecutorTaskResource {
+public class ExecutorTaskController {
 
-    private static final Logger log = LoggerFactory.getLogger(ExecutorTaskResource.class);
+    private static final Logger log = LoggerFactory.getLogger(ExecutorTaskController.class);
 
     private static final String SECRET_HEADER_PREFIX = "x-odm-";
 
     private final SimulatedRunStore simulatedRunStore;
 
     @Inject
-    public ExecutorTaskResource(SimulatedRunStore simulatedRunStore) {
+    public ExecutorTaskController(SimulatedRunStore simulatedRunStore) {
         this.simulatedRunStore = simulatedRunStore;
     }
 
@@ -58,15 +56,17 @@ public class ExecutorTaskResource {
 
     @POST
     @Path("/cancel")
-    public Response cancel(TaskCancelCommandRes request) {
-        log.info("Cancel run {}", request.getProviderRunId());
-        simulatedRunStore.cancel(request.getProviderRunId());
+    public Response cancel(TaskRunCommandRes request) {
+        String providerRunId = requireRunId(request);
+        log.info("Cancel run {}", providerRunId);
+        simulatedRunStore.cancel(providerRunId);
         return Response.ok().build();
     }
 
-    @GET
+    @POST
     @Path("/status")
-    public TaskStatusRes status(@QueryParam("providerRunId") String providerRunId) {
+    public TaskStatusRes status(TaskRunCommandRes request) {
+        String providerRunId = requireRunId(request);
         log.info("Status of run {}", providerRunId);
         TaskStatusRes result = new TaskStatusRes();
         result.setProviderRunId(providerRunId);
@@ -74,11 +74,22 @@ public class ExecutorTaskResource {
         return result;
     }
 
-    @GET
+    @POST
     @Path("/logs")
-    public TaskLogsRes logs(@QueryParam("providerRunId") String providerRunId) {
+    public TaskLogsRes logs(TaskRunCommandRes request) {
+        String providerRunId = requireRunId(request);
         log.info("Logs of run {}", providerRunId);
         return simulatedRunStore.logs(providerRunId);
+    }
+
+    private String requireRunId(TaskRunCommandRes request) {
+        if (request == null || request.getExecutorParameters() == null) {
+            throw new BadRequestException("executorParameters is required");
+        }
+        if (request.getProviderRunId() == null || request.getProviderRunId().isBlank()) {
+            throw new BadRequestException("providerRunId is required");
+        }
+        return request.getProviderRunId();
     }
 
     private List<String> secretHeaderNames(HttpHeaders headers) {
