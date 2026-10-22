@@ -92,7 +92,7 @@ public abstract class GenericCrudServiceImpl<T, ID extends Serializable> impleme
         T entity = findOne(identifier);
         R resource = mapper.apply(entity);
         transactionalSelf().delete(identifier);
-        afterDeleteCommit(entity);
+        runAfterCommit(() -> afterDeleteCommit(entity));
         return resource;
     }
 
@@ -180,7 +180,15 @@ public abstract class GenericCrudServiceImpl<T, ID extends Serializable> impleme
         pageableSortValidator.validate(pageable, getEntityClass(), getAllowedSortProperties());
     }
 
+    /**
+     * Runs the action when the surrounding transaction commits, which may be an outer transaction this
+     * call joined. Without an active transaction the work has already been committed, so it runs now.
+     */
     private void runAfterCommit(Runnable action) {
+        if (transactionSynchronizationRegistry.getTransactionStatus() == Status.STATUS_NO_TRANSACTION) {
+            action.run();
+            return;
+        }
         transactionSynchronizationRegistry.registerInterposedSynchronization(new Synchronization() {
             @Override
             public void beforeCompletion() {

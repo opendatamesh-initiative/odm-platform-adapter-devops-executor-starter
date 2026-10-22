@@ -1,7 +1,13 @@
 spec: backend-service-template-state
 specVersion: "1.0.0"
 templateName: blindata-backend-service-template-quarkus
-templateVersion: "1.0.1"
+templateVersion: "1.1.0"
+modules:
+  - persistence
+  - usecases
+  - usecases-transactional
+  - http-service
+  - rest-client
 parameters:
   groupId: org.opendatamesh
   artifactId: odm-platform-adapter-devops-executor-starter

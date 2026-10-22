@@ -17,7 +17,9 @@ import java.util.function.Function;
  * Quarkus 3.40's {@code QuarkusTransaction} runner cannot set a transaction isolation level.
  * Serializable isolation is applied as the first statement on the enlisted PostgreSQL connection:
  * {@code SET TRANSACTION ISOLATION LEVEL SERIALIZABLE}. PostgreSQL rejects that statement if the
- * transaction has already executed SQL, so this method runs before the caller's work.
+ * transaction has already executed SQL, so it is applied only when this call starts the transaction, before
+ * the caller's work. A call made inside an existing transaction joins it and inherits its isolation level,
+ * as with Spring.
  * <p>
  * Registered only when {@code quarkus.hibernate-orm.active} is {@code true}.
  */
@@ -34,16 +36,22 @@ public class DefaultTransactionalOutboundPortImpl implements TransactionalOutbou
 
     @Override
     public void doInTransaction(Runnable runnable) {
+        boolean startsTransaction = !QuarkusTransaction.isActive();
         QuarkusTransaction.joiningExisting().run(() -> {
-            applySerializableIsolation();
+            if (startsTransaction) {
+                applySerializableIsolation();
+            }
             runnable.run();
         });
     }
 
     @Override
     public <T, R> R doInTransactionWithResults(Function<T, R> function, T arg) {
+        boolean startsTransaction = !QuarkusTransaction.isActive();
         return QuarkusTransaction.joiningExisting().call(() -> {
-            applySerializableIsolation();
+            if (startsTransaction) {
+                applySerializableIsolation();
+            }
             return function.apply(arg);
         });
     }
