@@ -9,14 +9,14 @@ CRUD can be implemented through a small hierarchy of abstract classes that follo
 | Layer | Interface | Implementation | Purpose |
 | ----- | --------- | -------------- | ------- |
 | Entity CRUD | `GenericCrudService<T, ID>` | `GenericCrudServiceImpl<T, ID>` | Persistence for JPA entities `T` with id `ID`. |
-| + API mapping | `GenericMappedCrudService<R, T, ID>` | `GenericMappedCrudServiceImpl<R, T, ID>` | Adds REST/DTO type `R`: map `R ↔ T` and expose `*Resource` methods. |
+| + API mapping | `GenericMappedCrudService<R, T, ID>` | `GenericMappedCrudServiceImpl<R, T, ID>` | Adds the latest API version's DTO type `R`: map `R ↔ T` and expose `*Resource` methods (see [API resources](#api-resources-r-and-api-versions)). |
 | + filtering | `GenericMappedAndFilteredCrudService<F, R, T, ID>` | `GenericMappedAndFilteredCrudServiceImpl<F, R, T, ID>` | Adds filter object `F` and specification-based list queries. |
 
 **Type parameters**
 
 - **`T`** — JPA entity.
 - **`ID`** — Primary key type (`Serializable`, e.g. `Long`, `String`).
-- **`R`** — API resource / DTO returned to callers.
+- **`R`** — `*Res` of the **latest** API version, returned to that version's controllers.
 - **`F`** — Search or filter options used to build a `Specification<T>` (the template's own functional interface in `utils.repositories`).
 
 Pick the **shallowest** layer that fits: if the API does not need a separate `R`, you might only extend `GenericCrudServiceImpl`. When list endpoints support query filters and you expose DTOs, use **`GenericMappedAndFilteredCrudServiceImpl`**.
@@ -63,6 +63,16 @@ Delegation to a dedicated mapper class is common. Mapped operations are:
 
 ---
 
+## API resources (`R`) and API versions
+
+A mapped CRUD service is the **only** code outside `rest/**` that may use API DTOs (see [`PACKAGE_STRUCTURE.md`](./PACKAGE_STRUCTURE.md)). The exception is narrow:
+
+- `R` is a `*Res` of the **latest** API version. `toRes` / `toEntity` delegate to that version's mapper in `rest.v<N>.resources.<aggregate>`. The service uses no other `rest` type.
+- Only the latest version's controllers call the `*Resource` methods. Every other caller (use-case outbound port implementations, other core services, version adapters) uses the entity-level methods: `findOne`, `findAll`, `findAllFiltered`, `create`, `overwrite`, `delete`, `deleteReturning`.
+- When a new major version is introduced, `R` and the mapper move to the new version. The previous version's CRUD controllers are re-pointed to a **version adapter** in `rest.v<previous>.adapters`. The adapter maps that version's `*Res` (and filters) to and from entities with that version's own mapper, and calls the entity-level methods (`deleteReturning(id, mapper)` for delete-and-return). It is temporary and is deleted with the version.
+
+---
+
 ## Fixed algorithm (template method)
 
 The base class fixes the **order of operations**; subclasses should not change the sequence unless they intentionally override a public method (usually avoided).
@@ -75,7 +85,9 @@ The base class fixes the **order of operations**; subclasses should not change t
 
 **`deleteReturning`:** `findOne` → map with provided `Function` → `delete` → `afterDeleteCommit`
 
-Create/overwrite/delete are **`@Transactional`** on the CDI bean, so the transactional boundary is explicit inside the generic implementation. Read paths may use a small **`TransactionHandler`** (or equivalent) with `@Transactional` for mapped/filtered reads so lazy loading and mapping run inside a transactional boundary when needed.
+**After-commit hooks** (`afterCreationCommit`, `afterOverwriteCommit`, `afterDeleteCommit`) run when the surrounding transaction commits: the caller's transaction when the call joins one (for example inside a use case's `TransactionalOutboundPort`), and never on rollback. Without a surrounding transaction they run as soon as the write has committed.
+
+Create/overwrite/delete are **`@Transactional`** on the CDI bean, so the transactional boundary is explicit inside the generic implementation. Read paths may use a small **`TransactionHandler`** (or equivalent) with `@Transactional` for mapped/filtered reads so lazy loading and mapping run inside a transactional boundary when needed. After-commit hooks are registered with the `TransactionSynchronizationRegistry`.
 
 ---
 
@@ -104,22 +116,22 @@ The template wraps every generic CRUD service in **one interception point** arou
 
 - `CrudLifecycleEvent` (`CREATED`, `OVERWRITTEN`, `DELETED`) is fired by the template's own wrap after a CRUD write: an **operation-level** signal.
 - `EntityChangeEvent` is fired by `HibernateChangeDataCapture` on every insert, update and delete, including those not made through a CRUD service: an **entity-level** signal.
-- Observers that cause side effects outside the database run **after commit**, so a rolled-back write never leaks.
+- Observers that cause side effects outside the database run **after commit**, so a rolled-back write never leaks. `CrudLifecycleEvent` is fired inside the write's transaction, so after-commit observers are notified for every committed write, whether or not the caller had a transaction.
 
 **Rules:**
 
 - A wrap holds **no business policy** and does not change arguments or results. Policy belongs in hooks or use cases.
-- A wrap runs **once per external call**: nested calls (`createResource` → `create`) are not advised again.
+- A wrap runs **once per external call**: a nested call on the same service (`createResource` → `create`) is not advised again; a call to another CRUD service (for example from a hook) is.
 - Several wraps on the same methods declare an **explicit order**.
 - Use cases and outbound port implementations are **never** wrapped. Use cases reach cross-cutting behaviour through ports.
 
-**Quarkus:** subclass `GenericCrudInterceptor`, override `aroundFind` / `aroundCreate` / `aroundOverwrite` / `aroundDelete`, annotate it `@Interceptor @GenericCrudIntercepted` and order it with `@Priority`. Events are fired with CDI `Event<T>`; after-commit observers use `@Observes(during = TransactionPhase.AFTER_SUCCESS)`.
+**Quarkus:** subclass `GenericCrudInterceptor`, override `aroundFind` / `aroundCreate` / `aroundOverwrite` / `aroundDelete`, annotate it `@Interceptor @GenericCrudIntercepted` and order it with `@Priority`. Events are fired with CDI `Event<T>`; after-commit observers use `@Observes(during = TransactionPhase.AFTER_SUCCESS)`. `@Transactional` has a lower priority than the CRUD interceptors, so it wraps them and `CrudLifecycleEvent` is fired inside the write's transaction. The once-per-call guard in `GenericCrudInterceptor` skips nested calls on the same bean instance only.
 
 ---
 
 ## Controllers and public API
 
-- Prefer **`…Resource` methods** for HTTP adapters so the layer works with `R`, not entities.
+- The **latest** version's controllers call the **`…Resource` methods**, so they work with `R`, not entities. Previous versions go through their version adapter (see [API resources](#api-resources-r-and-api-versions)).
 - If path parameters must **override** fields in the body (e.g. id in URL vs body), override the `*Resource` method, set the field from the path, then call `super`.
 
 ---

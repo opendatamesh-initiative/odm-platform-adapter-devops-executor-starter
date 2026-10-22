@@ -3,35 +3,44 @@ package org.executor.utils.aspects;
 import jakarta.interceptor.AroundInvoke;
 import jakarta.interceptor.InvocationContext;
 
+import java.lang.reflect.Method;
+import java.util.IdentityHashMap;
+import java.util.Map;
+
 /**
  * CDI equivalent of Spring {@code GenericCrudAspect}. Subclass, override the
  * {@code around*} methods, and register the subclass as an interceptor bound
  * with {@link GenericCrudIntercepted}.
  * <p>
  * Method groups match the Spring pointcuts: find, create, overwrite, delete.
- * Nested proxy calls from the same thread (for example {@code createResource}
- * delegating to {@code create} through {@code transactionalSelf()}) skip the
- * {@code around*} methods so advice runs once, as with Spring self-invocation.
+ * Advice runs once per external call, as with Spring proxies: a nested call on the
+ * same bean instance (for example {@code createResource} delegating to {@code create}
+ * through {@code transactionalSelf()}) skips the {@code around*} methods, while a
+ * call to another CRUD service is advised normally.
  */
 public abstract class GenericCrudInterceptor {
 
-    private static final ThreadLocal<InvocationContext> CURRENT = new ThreadLocal<>();
+    /** Per thread: the bean instances with an advised call in progress, and that call's method. */
+    private static final ThreadLocal<Map<Object, Method>> ADVISED_CALLS =
+            ThreadLocal.withInitial(IdentityHashMap::new);
 
     @AroundInvoke
     public Object intercept(InvocationContext context) throws Exception {
-        InvocationContext outer = CURRENT.get();
-        if (outer != null && outer != context) {
+        Map<Object, Method> advisedCalls = ADVISED_CALLS.get();
+        Object target = context.getTarget();
+        Method outer = advisedCalls.get(target);
+        if (outer != null && !outer.equals(context.getMethod())) {
             return context.proceed();
         }
         boolean root = outer == null;
         if (root) {
-            CURRENT.set(context);
+            advisedCalls.put(target, context.getMethod());
         }
         try {
             return dispatch(context);
         } finally {
             if (root) {
-                CURRENT.remove();
+                advisedCalls.remove(target);
             }
         }
     }
