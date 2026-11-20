@@ -69,6 +69,8 @@ docker build -t odm-platform-adapter-devops-executor-starter .
 docker run --rm -p 9080:9080 odm-platform-adapter-devops-executor-starter
 ```
 
+The Docker Hub overview of this image is [`DOCKERHUB.md`](DOCKERHUB.md). It is published on every release, so keep it up to date.
+
 To run the native binary directly:
 
 ```bash
